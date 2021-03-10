@@ -1,0 +1,10 @@
+*.mp4
+*.npy
+*.pkl
+*.png
+*.pdf
+*.txt
+*.pyc
+code/notebooks/.ipynb_checkpoints/
+exp_data/
+output/

@@ -32,7 +32,7 @@ def get_trajs(T=para['T']):
     return df_traj 
 
 def get_survprob(df_data,Nt_samples,data_boundary=None,T=para['T']):
-    if data_boundary not None:
+    if data_boundary is not None:
         tb,b_bel=data_boundary[1]
         b_beltmp=[]
         for t in range(T+1):

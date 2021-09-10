@@ -271,7 +271,7 @@ def get_policy_from_value(V,state_set,ref_state,reward_incorrect,mode='DR',T=par
 
     return decide
     
-def run_value_iteration(mode='AR',threshold=1e-2,gamma=0.99,reward_incorrect=0,seed=0,T=para['T'],p=para['p']):
+def run_value_iteration(mode='AR',threshold=1e-2,max_iter=1e3,gamma=0.99,reward_incorrect=0,seed=0,T=para['T'],p=para['p']):
     
     np.random.seed(seed)
     init_Vval=-0.5
@@ -292,7 +292,6 @@ def run_value_iteration(mode='AR',threshold=1e-2,gamma=0.99,reward_incorrect=0,s
     ref_state=state_set[0]
     Qref=V[ref_state]
     it=-1
-    max_iter=1e4
     max_diff_store=[]
     while it<max_iter:#max_diff>threshold and # or diff_rho>threshold:
         it+=1

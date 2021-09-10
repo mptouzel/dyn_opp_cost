@@ -2,16 +2,30 @@ from scipy.interpolate import griddata
 from functools import partial
 import numpy as np
 from scipy.interpolate import griddata
-
-def plot_nocost_dec_times(df_data,pl,dataset_name,axbase,ax,ymax=None,T=15,start_time=None,label_str=None):
+para=dict()
+if True:
+    para['T']=15
+    para['T_ITI']=8#7.5 #para['T']/2=7.5 in primate experiments set to 8 so that all trial durations are integers
+    para['p']=1/2
+    para['tp']=0
+else:
+    para['T']=11
+    para['T_ITI']=0 #para['T']/2=7.5 in primate experiments set to 8 so that all trial durations are integers
+    para['p']=1/2
+    para['tp']=0
+    
+def plot_nocost_dec_times(df_data,pl,dataset_name,axbase,ax,t_offset=0,T=para['T'],start_time=None,label_str=None):
     '''
-    Computes empirical action policy distributions from a sample ensemble of trials held in the dataframe df_data 
+    Plots histograms over the state visitation ensemble (ax) and trial ensemeble (axbase) from the decision times over a batch of trials in df_data.
+    df_data is a pandas dataframe each each row contianing data for a trial. It must have the columns:
+    tDecision   decision times
+    seq         a list or array of jumps valued -1 or 1
     '''
 
     if (df_data.tDecision.values==0).sum():
         print('some decisions at t=0!')
-        
-    ###count distributions of decision events in (N_p,N_m) space 
+    
+    #decision event histogram over trial ensemble 
     dec_counts=np.zeros((T+1,T+1))
     for it,tdec in enumerate(df_data.tDecision.values):
         curr_traj=df_data.seq.iloc[it]
@@ -19,32 +33,7 @@ def plot_nocost_dec_times(df_data,pl,dataset_name,axbase,ax,ymax=None,T=15,start
     #add t=0 data
     dec_counts[0,0]=(df_data.tDecision==0).sum()
     
-    #decision events over trial ensemble 
-    point=8
-    offset=0.5
-    axbase.fill_between(-offset+np.arange(point,2*point+1),-offset+point-np.arange(point+1),-offset+point+np.arange(point+1),color=[0.8,0.8,0.8])
-    axbase.fill_between(-offset+np.arange(point,2*point+1),offset-point-np.arange(point+1),offset-point+np.arange(point+1),color=[0.8,0.8,0.8])
-    for Nm in 2*np.arange(T):
-        axbase.plot(np.arange(T+1-Nm/2)+Nm/2,np.arange(T+1-Nm/2)-Nm/2,'ko',ms=1,lw=0.5,color='k',mew=0.5,mfc='k',mec='k')
-    for Np in 2*np.arange(T):
-        axbase.plot(np.arange(T+1-Np/2)+Np/2,np.arange(T+1-Np/2)-Np/2,'ko',ms=1,lw=0.5,color='k',mew=0.5,mfc='k',mec='k')
-    mesh=np.meshgrid(range(T+1),range(T+1))
-    Npvec=mesh[0].flatten()
-    Nmvec=mesh[1].flatten()
-    tvec=Npvec+Nmvec
-    Nvec=Npvec-Nmvec
-    axbase.scatter(tvec.flatten(),Nvec.flatten(),s=160000*(dec_counts/np.sum(dec_counts)).flatten()**2,marker='+',linewidth=3,color='b',label=label_str)
-    for Np in range(T+1):
-        for Nm in range(T+1):
-            if Np+Nm< T+1:
-                axbase.scatter(Np+Nm,Np-Nm,s=5,facecolor='w',edgecolor='k',lw=0.5)
-    axbase.set_xticks([0,1/3*T,2/3*T,T])
-    axbase.set_yticks([-10,0,2/3*T])
-    axbase.set_xlim([0,15])
-    axbase.set_title('trial ensemble')
-    axbase.legend(frameon=False)
-    
-    #state occupancy count distributions in (N_p,N_m) space
+    #decision event histogram over state visitation ensemble
     occupancy_predec_counts=np.zeros((T+1,T+1))
     Nt_samples=np.cumsum(np.asarray(df_data.seq.tolist()),axis=1) #note that this starts at t=1, so indexing adjusted by -1 below.
     tdec_vec=df_data.tDecision.apply(lambda x:int(x)).values
@@ -53,36 +42,131 @@ def plot_nocost_dec_times(df_data,pl,dataset_name,axbase,ax,ymax=None,T=15,start
             if Np+Nm<=T and Np+Nm>0:#=0
                 occupancy_predec_counts[Np,Nm]=np.sum(Nt_samples[tdec_vec-1>=Np+Nm-1,Np+Nm-1]==Np-Nm) 
     occupancy_predec_counts[0,0]=len(df_data)  #all trajs go through (N_p=0,N_m=0).
-    dec_dist=np.where(occupancy_predec_counts>0,dec_counts/occupancy_predec_counts,0)
+    dec_dist=np.where(occupancy_predec_counts>0,dec_counts/occupancy_predec_counts,0) 
+    
+    
+    #rescale for visualization
+    dec_counts=160000*(dec_counts/np.sum(dec_counts)).flatten()**2
+    dec_dist=500*dec_dist.flatten()**2
+    
+    #set-up state space
+    point=(T+1)/2
+    offset=0.5
+    mesh=np.meshgrid(range(T+1),range(T+1))
+    Npvec=mesh[0].flatten()
+    Nmvec=mesh[1].flatten()
+    tvec=Npvec+Nmvec
+    Nvec=Npvec-Nmvec
+    
+    #plot both
+    axvec=[ax,axbase]
+    ax_titlevec=['trial ensemble','visitation ensemble']
+    for dit,data in enumerate((dec_counts,dec_dist)):
+        axvec[dit].fill_between(-offset+np.arange(point,2*point+1),-offset+point-np.arange(point+1),-offset+point+np.arange(point+1),color=[0.8,0.8,0.8],zorder=0)
+        axvec[dit].fill_between(-offset+np.arange(point,2*point+1),offset-point-np.arange(point+1),offset-point+np.arange(point+1),color=[0.8,0.8,0.8],zorder=0)
+        for Nm in 2*np.arange(T):
+            axvec[dit].plot(np.arange(T+1-Nm/2)+Nm/2,np.arange(T+1-Nm/2)-Nm/2,'ko',ms=1,lw=0.5,color='k',mew=0.5,mfc='k',mec='k')
+        for Np in 2*np.arange(T):
+            axvec[dit].plot(np.arange(T+1-Np/2)+Np/2,np.arange(T+1-Np/2)-Np/2,'ko',ms=1,lw=0.5,color='k',mew=0.5,mfc='k',mec='k')
+        axvec[dit].scatter(tvec.flatten()+t_offset,Nvec.flatten(),s=data,marker='+',linewidth=3,label=label_str)
+        for Np in range(T+1):
+            for Nm in range(T+1):
+                if Np+Nm< T+1:
+                    axvec[dit].scatter(Np+Nm,Np-Nm,s=5,facecolor='w',edgecolor='k',lw=0.5)
+        axvec[dit].set_xticks([0,1/3*T,2/3*T,T])
+        axvec[dit].set_yticks([-10,0,2/3*T])
+        axvec[dit].set_xlim([0,T])
+        axvec[dit].set_title(dataset_name+': '+ax_titlevec[dit])
+        axvec[dit].legend(frameon=False)
+        
+#def plot_nocost_dec_times(df_data,pl,dataset_name,axbase,ax,t_offset=0,T=11,start_time=None,label_str=None):
+    #'''
+    #Computes empirical action policy distributions from a sample ensemble of trials held in the dataframe df_data 
+    #'''
 
-    #decision events over visitation ensemble
-    ax.fill_between(-offset+np.arange(point,2*point+1),-offset+point-np.arange(point+1),-offset+point+np.arange(point+1),color=[0.8,0.8,0.8])
-    ax.fill_between(-offset+np.arange(point,2*point+1),offset-point-np.arange(point+1),offset-point+np.arange(point+1),color=[0.8,0.8,0.8])
-    for Nm in 2*np.arange(T):
-        ax.plot(np.arange(T+1-Nm/2)+Nm/2,np.arange(T+1-Nm/2)-Nm/2,'ko',ms=1,lw=0.5,color='k',mew=0.5,mfc='k',mec='k')
-    for Np in 2*np.arange(T):
-        ax.plot(np.arange(T+1-Np/2)+Np/2,np.arange(T+1-Np/2)-Np/2,'ko',ms=1,lw=0.5,color='k',mew=0.5,mfc='k',mec='k')
-    ax.scatter(tvec.flatten(),Nvec.flatten(),s=500*dec_dist.flatten()**2,marker='+',linewidth=3,color='r',label=label_str)
-    ax.set_xlim(0,T)
-    ax.set_ylim(-T,T)
-    ax.set_xticks([0,1/3*T,2/3*T,T]) 
-    for Np in range(T+1):
-        for Nm in range(T+1):
-            if Np+Nm< T+1:
-                ax.scatter(Np+Nm,Np-Nm,s=5,facecolor='w',edgecolor='k',lw=0.5)
-    ax.set_title('visitation ensemble')
-    ax.legend(frameon=False)
-    #accuracy bias
-    in_count=0
-    out_count=0
-    for Np in range(T+1):
-        for Nm in range(T+1):
-            if Np>=8 or Nm>=8:
-                in_count+=dec_dist[Np,Nm]
-            else:
-                out_count+=dec_dist[Np,Nm]
+    #if (df_data.tDecision.values==0).sum():
+        #print('some decisions at t=0!')
+        
+    ####count distributions of decision events in (N_p,N_m) space 
+    #dec_counts=np.zeros((T+1,T+1))
+    #for it,tdec in enumerate(df_data.tDecision.values):
+        #curr_traj=df_data.seq.iloc[it]
+        #dec_counts[np.sum(curr_traj[:int(tdec)]==1),np.sum(curr_traj[:int(tdec)]==-1)]+=1 #increment occupancy at given (Np,Nm). int rounds down so should include current state. -1 to map to traj time index,  
+    ##add t=0 data
+    #dec_counts[0,0]=(df_data.tDecision==0).sum()
+    
+    ##decision events over trial ensemble 
+    #point=(T+1)/2
+    #offset=0.5
+    
+    #mesh=np.meshgrid(range(T+1),range(T+1))
+    #Npvec=mesh[0].flatten()
+    #Nmvec=mesh[1].flatten()
+    #tvec=Npvec+Nmvec
+    #Nvec=Npvec-Nmvec
+    
+    ##state occupancy count distributions in (N_p,N_m) space
+    #occupancy_predec_counts=np.zeros((T+1,T+1))
+    #Nt_samples=np.cumsum(np.asarray(df_data.seq.tolist()),axis=1) #note that this starts at t=1, so indexing adjusted by -1 below.
+    #tdec_vec=df_data.tDecision.apply(lambda x:int(x)).values
+    #for Np in np.arange(T+1):
+        #for Nm in np.arange(T+1):
+            #if Np+Nm<=T and Np+Nm>0:#=0
+                #occupancy_predec_counts[Np,Nm]=np.sum(Nt_samples[tdec_vec-1>=Np+Nm-1,Np+Nm-1]==Np-Nm) 
+    #occupancy_predec_counts[0,0]=len(df_data)  #all trajs go through (N_p=0,N_m=0).
+    
+    #dec_dist=np.where(occupancy_predec_counts>0,dec_counts/occupancy_predec_counts,0)
+    #dec_dist=500*dec_dist.flatten()**2
+    #dec_counts=160000*(dec_counts/np.sum(dec_counts)).flatten()**2
+    
+    #axvec=[ax,axbase]
+    #ax_titlevec=['trial ensemble','visitation ensemble']
+    #for dit,data in enumerate((dec_counts,dec_dist)):
+        #axvec[dit].fill_between(-offset+np.arange(point,2*point+1),-offset+point-np.arange(point+1),-offset+point+np.arange(point+1),color=[0.8,0.8,0.8],zorder=0)
+        #axvec[dit].fill_between(-offset+np.arange(point,2*point+1),offset-point-np.arange(point+1),offset-point+np.arange(point+1),color=[0.8,0.8,0.8],zorder=0)
+        #for Nm in 2*np.arange(T):
+            #axvec[dit].plot(np.arange(T+1-Nm/2)+Nm/2,np.arange(T+1-Nm/2)-Nm/2,'ko',ms=1,lw=0.5,color='k',mew=0.5,mfc='k',mec='k')
+        #for Np in 2*np.arange(T):
+            #axvec[dit].plot(np.arange(T+1-Np/2)+Np/2,np.arange(T+1-Np/2)-Np/2,'ko',ms=1,lw=0.5,color='k',mew=0.5,mfc='k',mec='k')
+        #axvec[dit].scatter(tvec.flatten()+t_offset,Nvec.flatten(),s=data,marker='+',linewidth=3,label=label_str)
+        #for Np in range(T+1):
+            #for Nm in range(T+1):
+                #if Np+Nm< T+1:
+                    #axvec[dit].scatter(Np+Nm,Np-Nm,s=5,facecolor='w',edgecolor='k',lw=0.5)
+        #axvec[dit].set_xticks([0,1/3*T,2/3*T,T])
+        #axvec[dit].set_yticks([-10,0,2/3*T])
+        #axvec[dit].set_xlim([0,T])
+        #axvec[dit].set_title(dataset_name+': '+ax_titlevec[dit])
+        #axvec[dit].legend(frameon=False)
+
+    ##decision events over visitation ensemble
+    #ax.fill_between(-offset+np.arange(point,2*point+1),-offset+point-np.arange(point+1),-offset+point+np.arange(point+1),color=[0.8,0.8,0.8])
+    #ax.fill_between(-offset+np.arange(point,2*point+1),offset-point-np.arange(point+1),offset-point+np.arange(point+1),color=[0.8,0.8,0.8])
+    #for Nm in 2*np.arange(T):
+        #ax.plot(np.arange(T+1-Nm/2)+Nm/2,np.arange(T+1-Nm/2)-Nm/2,'ko',ms=1,lw=0.5,color='k',mew=0.5,mfc='k',mec='k')
+    #for Np in 2*np.arange(T):
+        #ax.plot(np.arange(T+1-Np/2)+Np/2,np.arange(T+1-Np/2)-Np/2,'ko',ms=1,lw=0.5,color='k',mew=0.5,mfc='k',mec='k')
+    #ax.scatter(tvec.flatten(),Nvec.flatten(),s=,marker='+',linewidth=3,color='r',label=label_str)
+    #ax.set_xlim(0,T)
+    #ax.set_ylim(-T,T)
+    #ax.set_xticks([0,1/3*T,2/3*T,T]) 
+    #for Np in range(T+1):
+        #for Nm in range(T+1):
+            #if Np+Nm< T+1:
+                #ax.scatter(Np+Nm,Np-Nm,s=5,facecolor='w',edgecolor='k',lw=0.5)
+    #ax.set_title('visitation ensemble')
+    #ax.legend(frameon=False)
+    ##accuracy bias
+    #in_count=0
+    #out_count=0
+    #for Np in range(T+1):
+        #for Nm in range(T+1):
+            #if Np>=8 or Nm>=8:
+                #in_count+=dec_dist[Np,Nm]
+            #else:
+                #out_count+=dec_dist[Np,Nm]
                 
-    return (in_count-out_count)/np.sum(dec_dist)
+    #return (in_count-out_count)/np.sum(dec_dist)
 
 
 
@@ -523,7 +607,6 @@ def plot_dec_times(df_data,pl,dataset_name,ymax=1,T=15,ax=None,savefigs=False):
 #         np.save('primate_p_success_'+dataset_name+'.npy',dist_corr)
 #         np.save('primate_p_success_'+dataset_name+'_num.npy',dist)
 
-from scipy.interpolate import griddata
 def plot_dec_times(df_data,pl,dataset_name,axbase,ax,ymax=None,T=15,start_time=None):
     '''
     Computes empirical action policy distributions from a sample ensemble of trials held in the dataframe df_data 

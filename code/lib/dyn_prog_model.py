@@ -289,7 +289,7 @@ def run_value_iteration(mode='AR',threshold=1e-2,max_iter=1e3,gamma=0.99,reward_
     #rho=0
     #eta=1e-3
     #diff_rho=np.Inf if mode=='AR' else 0
-    ref_state=state_set[0]
+    ref_state=state_set[0] #initial state used as reference state
     Qref=V[ref_state]
     it=-1
     max_diff_store=[]
@@ -300,28 +300,36 @@ def run_value_iteration(mode='AR',threshold=1e-2,max_iter=1e3,gamma=0.99,reward_
             state_ind=tuple(state_ind)
             
             Q=np.zeros((3,))
+            
             for reporting_action in [-1,1]:
-                Q[action_set==reporting_action]=get_expected_reward(state_ind,reporting_action,reward_incorrect)
+                R_current=get_expected_reward(state_ind,reporting_action,reward_incorrect)
                 if mode=='DR':
-                    Q[action_set==reporting_action]+=gamma*Qref
+                    Q[action_set==reporting_action]=R_current +gamma*Qinit
+                elif mode=='AR':
+                    Q[action_set==reporting_action]=R_current -Qref +Qinit
+            
             wait_action=0
             R_current=0
             if np.sum(state_ind)==T:
-                Q[action_set==wait_action]=R_current + gamma*Qref
+                if mode=='DR':
+                    Q[action_set==wait_action]=R_current       + gamma*Qinit
+                elif mode=='AR':
+                    Q[action_set==wait_action]=R_current -Qref +       Qinit
             else:
                 Vnextvec=np.array([Vold[ind] for ind in get_next_state_inds(state_ind)])
                 avgVnext=np.sum(jump_dist*Vnextvec)
                
-                if mode=='AR':
-                    Q[action_set==wait_action]=R_current-Qref+avgVnext
-                elif mode=='DR':
-                    Q[action_set==wait_action]=R_current    +gamma*avgVnext
+                if mode=='DR':
+                    Q[action_set==wait_action]=R_current     +gamma*avgVnext
+                elif mode=='AR':
+                    Q[action_set==wait_action]=R_current-Qref+      avgVnext
 
-                Q[action_set==wait_action]=np.sum(jump_dist*Vnextvec)
                 
             V[state_ind]=np.max(Q)
+
+        Qinit=V[ref_state] 
+        Qref=deepcopy(Qinit)
             
-        Qref=V[ref_state]
             #if np.sum(state_ind)!=T:
                 #Vnextvec=np.array([Vold[ind] for ind in get_next_state_inds(state_ind)])
                 #avgVnext=np.sum(jump_dist*Vnextvec)

@@ -4,14 +4,14 @@ import pandas as pd
 from itertools import product
 from scipy.interpolate import griddata
 para=dict()
-if True:
+if False:
     para['T']=15
     para['T_ITI']=8#7.5 #para['T']/2=7.5 in primate experiments set to 8 so that all trial durations are integers
     para['p']=1/2
     para['tp']=0
 else:
     para['T']=11
-    para['T_ITI']=0 #para['T']/2=7.5 in primate experiments set to 8 so that all trial durations are integers
+    para['T_ITI']=1 #para['T']/2=7.5 in primate experiments set to 8 so that all trial durations are integers
     para['p']=1/2
     para['tp']=0
 

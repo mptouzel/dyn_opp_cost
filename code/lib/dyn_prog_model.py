@@ -6,14 +6,14 @@ import time
 import numpy as np
 import pandas as pd
 para=dict()
-if True:
+if False:
     para['T']=15
     para['T_ITI']=8#7.5 #para['T']/2=7.5 in primate experiments set to 8 so that all trial durations are integers
     para['p']=1/2
     para['tp']=0
 else:
     para['T']=11
-    para['T_ITI']=0 #para['T']/2=7.5 in primate experiments set to 8 so that all trial durations are integers
+    para['T_ITI']=1 #para['T']/2=7.5 in primate experiments set to 8 so that all trial durations are integers
     para['p']=1/2
     para['tp']=0
 para['move_cost']=0
@@ -216,6 +216,17 @@ def get_expected_reward(state_ind,reporting_action,reward_incorrect):
     p=get_psuccess(state_ind,reporting_action)
     reward_correct=1
     return p*reward_correct+(1-p)*reward_incorrect
+
+def get_rewardrate_from_df(dfb,reward_incorrect):
+    
+    dfb['nCorrectChoice']=dfb.Nt.apply(lambda x: np.sign(x[-1]))
+    dfb['nChoiceMade']=dfb.apply(lambda row: np.sign(row.Nt[row.tDecision]),axis=1)
+    #dfb['prob_corr_at_tdec']=dfb.apply(lambda row:np.max([row.p_plus[row.tDecision],1-row.p_plus[row.tDecision]]),axis=1)   
+    meanT=dfb.tDecision.apply(lambda x: get_trial_duration(x,1)).mean()
+    p_correct=(dfb['nCorrectChoice']==dfb['nChoiceMade']).mean()
+    print(p_correct)
+    reward_correct=1
+    return (p_correct*reward_correct+(1-p_correct)*reward_incorrect)/meanT
 
 def get_opt_action(choice_values):
     #greedy action depends on if there is degeneracy
